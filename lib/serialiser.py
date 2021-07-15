@@ -6,9 +6,20 @@ from enum import Enum
 from typing import Type, List
 
 from pydantic import Required, create_model
-
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import create_engine
+SQLALCHEMY_DATABASE_URL = "sqlite:///./sql_app.db"
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 base = declarative_base()
+def get_db():
+    db = SessionLocal()
+    return db
+    # try:
+    #     yield db
+    # finally:
+    #     db.close()
 
 
 class SerializerMeta(ABC):
@@ -16,6 +27,7 @@ class SerializerMeta(ABC):
     write_only_fields: set = set()
     read_only_fields: set = set()
     model: base = None
+    db: Session = get_db
 
 
 class FieldGenerationMode(int, Enum):
@@ -31,11 +43,23 @@ class CbvSerializer(BaseModel):
     @classmethod
     def sanitize_list(cls, iterable: Iterable) -> List[dict]:
         def clean_d(d):
+            print(d)
             if hasattr(cls.Meta, "exclude"):
                 for e in cls.Meta.exclude:
                     d.pop(e, None)
-                return d
-            return d
+                # return d
+            col_names = [i.name for i in cls.Meta.model.__table__._columns]
+            print(col_names)
+            # import pdb;
+            # pdb.set_trace()
+            output = {}
+            for i in col_names:
+                output[i] = d.get(i)
+            # output = {k:v for k,v in d.items if k in col_names}
+            # for i in d:
+            #     if i in col_names:
+            #
+            return output
 
         return list(map(lambda x: clean_d(x), iterable))
 
@@ -50,9 +74,19 @@ class CbvSerializer(BaseModel):
                 and getattr(self.Meta, "model", None) is not None
         ):
             instance = self.Meta.model(**self.__dict__)
-            await instance.save(
-                include=include, exclude=exclude, rewrite_fields=rewrite_fields
-            )
+            db =  self.Meta.db()
+            db.add(instance)
+            db.commit()
+            db.refresh(instance)
+            # hash_pwd = user.password + 'abcd'
+            # db_user = models.User(email=user.email, hashed_password=hash_pwd)
+            # db.add(db_user)
+            # db.commit()
+            # db.refresh(db_user)
+            # return db_user
+            # await instance.save(
+            #     include=include, exclude=exclude, rewrite_fields=rewrite_fields
+            # )
             return instance
 
     def dict(self, *args, **kwargs) -> dict:
@@ -112,7 +146,7 @@ def model_generator(cls: Type, mode: FieldGenerationMode):
             _fields.update({f: (t.type_, f_def)})
 
     if mode == FieldGenerationMode.REQUEST:
-        response_model = gen_model(cls, mode=FieldGenerationMode.RESPONSE)
+        response_model = model_generator(cls, mode=FieldGenerationMode.RESPONSE)
 
         CbvSerializer.Config = Config
         model = create_model(cls.__name__, __base__=CbvSerializer, **_fields)

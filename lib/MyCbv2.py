@@ -31,11 +31,12 @@ def create_get(ViewClass, method_name):
         a[0].startswith('__') and a[0].endswith('__'))]
     default_query_params = dict(default_query_params)
 
-    # lookup_field = ViewClass.lookup_field
-    # query_params_list.append(
-    #     inspect.Parameter(name=lookup_field, kind=inspect.Parameter.KEYWORD_ONLY,
-    #                       annotation=str)
-    # )
+    if ViewClass.get('lookup_field'):
+        lookup_field = ViewClass.lookup_field
+        query_params_list.append(
+            inspect.Parameter(name=lookup_field, kind=inspect.Parameter.KEYWORD_ONLY,
+                              annotation=str)
+        )
 
     for param_name, param_type_hint in get_type_hints(QueryParams).items():
         default_val = default_query_params.pop(
@@ -52,8 +53,6 @@ def create_get(ViewClass, method_name):
                               annotation=inspect.Parameter.empty, default=default_val)
         )
 
-    # old_parameters += query_params_list
-    # old_first_parameter = old_parameters[0]
     old_first_parameter = [i for i in old_parameters if i._name == "self"][0]
     new_first_parameter = old_first_parameter.replace(
         default=Depends(ViewClass))
@@ -62,7 +61,6 @@ def create_get(ViewClass, method_name):
     ]
     old_signature = old_signature.replace(parameters=[])
     new_signature = old_signature.replace(parameters=new_parameters)
-    print("new_signature = ", new_signature)
     setattr(new_method, "__signature__", new_signature)
     return new_method
 
@@ -72,62 +70,17 @@ def create_post(ViewClass, method_name):
     old_signature = inspect.signature(new_method)
     old_parameters: List[inspect.Parameter] = list(
         i for i in old_signature.parameters.values() if i.name not in ('args', 'kwargs'))
-
     serializer = ViewClass.serializer_class
-    # pdb.set_trace()
-
-
-    # QueryParams = ViewClass.QueryParams
-    # default_query_params = inspect.getmembers(
-    #     QueryParams, lambda a: not(inspect.isroutine(a) or inspect.isclass(a) or inspect.isabstract(a)))
-    # default_query_params = [_param for _param in default_query_params if not(_param[0].startswith('__') and _param[0].endswith('__') or _param[0] == '_abc_impl')]
-    # # default_query_params_new = []
-    # # for _param in default_query_params:
-    # #     if not (_param[0].startswith('__') and _param[0].endswith('__') or _param[0] == '_abc_impl'):
-    # #         default_query_params_new.append(_param)
-    #
-    #
-    # default_query_params = dict(default_query_params)
-    #
-    # # lookup_field = ViewClass.lookup_field
-    # # query_params_list.append(
-    # #     inspect.Parameter(name=lookup_field, kind=inspect.Parameter.KEYWORD_ONLY,
-    # #                       annotation=str)
-    # # )
-    #
-    # for param_name, param_type_hint in get_type_hints(QueryParams).items():
-    #     default_val = default_query_params.pop(
-    #         param_name, inspect.Parameter.empty)
-    #
-    #     query_params_list.append(
-    #         inspect.Parameter(name=param_name, kind=inspect.Parameter.KEYWORD_ONLY,
-    #                           annotation=param_type_hint, default=default_val)
-    #     )
-    #
-    # for param_name, default_val in default_query_params.items():
-    #     query_params_list.append(
-    #         inspect.Parameter(name=param_name, kind=inspect.Parameter.KEYWORD_ONLY,
-    #                           annotation=inspect.Parameter.empty, default=default_val)
-    #     )
-    #
-    # old_parameters += query_params_list
     old_first_parameter = [i for i in old_parameters if i._name == "self"][0]
-
-
-    new_first_parameter = old_first_parameter.replace(kind=inspect.Parameter.KEYWORD_ONLY,
-        default=Depends(ViewClass))
-    # # pdb.set_trace()
-    # new_parameters = [new_first_parameter] + [
-    #     parameter.replace(kind=inspect.Parameter.KEYWORD_ONLY) for parameter in old_parameters[1:]
-    # ]
-    new_parameters = [inspect.Parameter(name='serializer', kind=inspect.Parameter.POSITIONAL_OR_KEYWORD, default=inspect._empty, annotation=serializer), new_first_parameter]
-    # new_parameters = [new_first_parameter] + old_parameters[1:]
-    # new_signature = old_signature.replace()
+    new_first_parameter = old_first_parameter.replace(
+        kind=inspect.Parameter.KEYWORD_ONLY, default=Depends(ViewClass))
+    new_parameters = [inspect.Parameter(name='serializer',
+                                        kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                                        default=inspect._empty, annotation=serializer),
+                      new_first_parameter]
     old_signature = old_signature.replace(parameters=[])
-    new_signature = old_signature.replace(
-        parameters=new_parameters)
+    new_signature = old_signature.replace(parameters=new_parameters)
     setattr(new_method, "__signature__", new_signature)
-    print('returning.....')
     return new_method
 
 METHOD_MAP = {

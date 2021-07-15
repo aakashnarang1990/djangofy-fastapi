@@ -75,7 +75,7 @@ CustomRouter(router=router, url="/test_200/{item_id}",
 # def UserClass(ApiViewClass):
 
 
-'router: APIRouter, cls: Type[T]'
+# 'router: APIRouter, cls: Type[T]'
 
 
 # def custom_router(route:APIRouter, class_view:Any)->Callable:
